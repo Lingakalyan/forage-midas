@@ -2,9 +2,9 @@ package com.jpmc.midascore.service;
 
 import com.jpmc.midascore.entity.TransactionRecord;
 import com.jpmc.midascore.entity.UserRecord;
+import com.jpmc.midascore.foundation.Transaction;
 import com.jpmc.midascore.repository.TransactionRecordRepository;
 import com.jpmc.midascore.repository.UserRepository;
-import com.jpmc.midascore.foundation.Transaction; // <-- the DTO from the scaffold
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,54 +25,28 @@ public class TransactionService {
 
     @Transactional
     public void processIncoming(Transaction tx) {
-        // Extract sender/recipient “ids” from the DTO. If your DTO has getSenderId()/getRecipientId()
-        // that are names, use findByName. If they’re numeric, parse and use findById.
-        String senderKey = tx.getSenderId();
-        String recipientKey = tx.getRecipientId();
+        long senderId = tx.getSenderId();       // long from DTO
+        long recipientId = tx.getRecipientId(); // long from DTO
 
-        Optional<UserRecord> senderOpt = userRepository.findByName(senderKey);
-        Optional<UserRecord> recipientOpt = userRepository.findByName(recipientKey);
-
-        if (senderOpt.isEmpty() || recipientOpt.isEmpty()) {
-            // invalid IDs -> discard
-            return;
-        }
+        Optional<UserRecord> senderOpt = userRepository.findById(senderId);
+        Optional<UserRecord> recipientOpt = userRepository.findById(recipientId);
+        if (senderOpt.isEmpty() || recipientOpt.isEmpty()) return;
 
         UserRecord sender = senderOpt.get();
         UserRecord recipient = recipientOpt.get();
 
-        // Work in BigDecimal for correctness; UserRecord may have float/double balance
-        BigDecimal amount = toAmount(tx.getAmount());
+        BigDecimal amount = BigDecimal.valueOf(tx.getAmount());             // adapt if BigDecimal in DTO
+        BigDecimal senderBal = BigDecimal.valueOf(sender.getBalance());     // balance field is float/double in scaffold
+        if (senderBal.compareTo(amount) < 0) return;                         // insufficient funds
 
-        BigDecimal senderBal = toAmount(sender.getBalance());
-        if (senderBal.compareTo(amount) < 0) {
-            // insufficient funds -> discard
-            return;
-        }
+        BigDecimal recipientBal = BigDecimal.valueOf(recipient.getBalance());
 
-        // apply
-        BigDecimal newSender = senderBal.subtract(amount);
-        BigDecimal recipientBal = toAmount(recipient.getBalance()).add(amount);
+        sender.setBalance(senderBal.subtract(amount).floatValue());
+        recipient.setBalance(recipientBal.add(amount).floatValue());
 
-        // Save back as the original numeric type
-        sender.setBalance(newSender.floatValue());
-        recipient.setBalance(recipientBal.floatValue());
-
-        // persist entities
         userRepository.save(sender);
         userRepository.save(recipient);
 
-        // record the transaction
         txRepo.save(new TransactionRecord(amount, sender, recipient));
-    }
-
-    private static BigDecimal toAmount(double v) {
-        return BigDecimal.valueOf(v);
-    }
-    private static BigDecimal toAmount(float v) {
-        return BigDecimal.valueOf(Double.valueOf(String.valueOf(v)));
-    }
-    private static BigDecimal toAmount(Number n) {
-        return BigDecimal.valueOf(n.doubleValue());
     }
 }
