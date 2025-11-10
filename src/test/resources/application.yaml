@@ -1,2 +1,10 @@
+server:
+  port: 33400
 general:
   kafka-topic: midas-transactions
+spring:
+  kafka:
+    consumer:
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.jpmc.midascore.foundation
