@@ -3,44 +3,37 @@ package com.jpmc.midascore.entity;
 import jakarta.persistence.*;
 
 @Entity
+@Table(name = "user_record")
 public class UserRecord {
 
     @Id
-    @GeneratedValue()
-    private long id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @Column(nullable = false)
+    // Name/username used by tests' populator
+    @Column(nullable = false, unique = true)
     private String name;
 
+    // Balance used by tests' populator
     @Column(nullable = false)
     private float balance;
 
-    protected UserRecord() {
-    }
+    // --- JPA needs this ---
+    public UserRecord() { }
 
+    // --- Tests expect this ---
     public UserRecord(String name, float balance) {
         this.name = name;
         this.balance = balance;
     }
 
-    @Override
-    public String toString() {
-        return String.format("User[id=%d, name='%s', balance='%f'", id, name, balance);
-    }
+    // --- getters/setters ---
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
-    public Long getId() {
-        return id;
-    }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
 
-    public String getName() {
-        return name;
-    }
-
-    public float getBalance() {
-        return balance;
-    }
-
-    public void setBalance(float balance) {
-        this.balance = balance;
-    }
+    public float getBalance() { return balance; }
+    public void setBalance(float balance) { this.balance = balance; }
 }
