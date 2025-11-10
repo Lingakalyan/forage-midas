@@ -1,45 +1,38 @@
 package com.jpmc.midascore.config;
 
-import com.jpmc.midascore.model.Transaction; // <-- use the actual Transaction class path in your repo
-import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.common.serialization.StringDeserializer;
+import com.jpmc.midascore.foundation.Transaction;
+import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
-import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.support.serializer.JsonDeserializer;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @Configuration
 public class KafkaConsumerConfig {
 
     @Bean
-    public ConsumerFactory<String, Transaction> transactionConsumerFactory() {
-        // JsonDeserializer configured to trust your packages and NOT require type headers
-        JsonDeserializer<Transaction> jsonDeserializer =
-                new JsonDeserializer<>(Transaction.class, false);
-        jsonDeserializer.addTrustedPackages("*");
+    public ConsumerFactory<String, Transaction> transactionConsumerFactory(KafkaProperties props) {
+        // Use Boot’s effective consumer props (Embedded Kafka injects bootstrap)
+        Map<String, Object> cfg = props.buildConsumerProperties();
 
-        Map<String, Object> props = new HashMap<>();
-        // Do NOT set bootstrap servers here; the embedded Kafka in tests provides it.
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "midas-core");
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        // Configure JSON VALUE deserialization via properties only (no explicit instance)
+        cfg.put(JsonDeserializer.TRUSTED_PACKAGES, "com.jpmc.midascore.foundation");
+        cfg.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
+        cfg.put(JsonDeserializer.VALUE_DEFAULT_TYPE, Transaction.class.getName());
 
-        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), jsonDeserializer);
+        return new DefaultKafkaConsumerFactory<>(cfg);
     }
 
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, Transaction>
-    transactionKafkaListenerContainerFactory() {
+    transactionKafkaListenerContainerFactory(ConsumerFactory<String, Transaction> cf) {
         ConcurrentKafkaListenerContainerFactory<String, Transaction> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(transactionConsumerFactory());
-        // optional: handle batches if you decide later
+        factory.setConsumerFactory(cf);
         factory.setBatchListener(false);
         return factory;
     }
